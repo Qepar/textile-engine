@@ -1,0 +1,22 @@
+name: Physics regression
+on: [push, pull_request]
+jobs:
+  physics:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e .
+      - run: python -m unittest discover -s tests -v
+      - name: Build optional native distance kernel
+        if: runner.os == 'Linux'
+        run: c++ -O3 -std=c++17 -shared -fPIC native/distance_sweep.cpp -o distance_sweep.so
+      - name: Check native parity and invalid input rejection
+        if: runner.os == 'Linux'
+        run: python benchmarks/native_distance.py ./distance_sweep.so native-benchmark.json

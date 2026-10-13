@@ -23,8 +23,12 @@ class Particle:
         temperature (float): Temperature in Celsius
     """
     def __init__(self, position, velocity=np.zeros(3), mass=1.0, fixed=False, radius=0.05, dampness=0.0, temperature=20.0):
+        if not np.isfinite([mass,radius,dampness,temperature]).all() or mass<=0 or radius<0 or not 0<=dampness<=1:
+            raise ValueError("invalid particle parameters")
         self.position = np.array(position, dtype=np.float64)
         self.velocity = np.array(velocity, dtype=np.float64)
+        if self.position.shape!=(3,) or self.velocity.shape!=(3,) or not np.isfinite(self.position).all() or not np.isfinite(self.velocity).all():
+            raise ValueError("invalid particle state")
         self.force = np.zeros(3, dtype=np.float64)
         self.mass = mass
         self.inv_mass = 1.0 / mass if mass > 0 else 0.0

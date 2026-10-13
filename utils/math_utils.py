@@ -6,3 +6,6 @@ def norm(v):
 def normalize(v):
     n = norm(v)
     return v / n if n > 0 else np.zeros_like(v)
+
+def clamp(value, minimum, maximum):
+    return np.clip(value, minimum, maximum)

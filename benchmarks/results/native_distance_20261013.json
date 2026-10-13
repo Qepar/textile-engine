@@ -1,0 +1,101 @@
+{
+  "status": "PASS",
+  "scope": "DISTANCE_KERNEL_ONLY_NOT_FULL_SIMULATOR",
+  "environment": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "numpy": "2.3.5",
+  "results": [
+    {
+      "python_samples_per_sweep": [
+        0.002485361918038283,
+        0.002465150000001008,
+        0.0024962166229536213
+      ],
+      "native_samples_per_sweep": [
+        1.9433575252162113e-05,
+        1.8911549041867335e-05,
+        1.7945733939471117e-05
+      ],
+      "python_timing_calls": [
+        61,
+        61,
+        61
+      ],
+      "native_timing_calls": [
+        7734,
+        7932,
+        8359
+      ],
+      "grid": 10,
+      "vertices": 100,
+      "edges": 180,
+      "parity_sweeps": 5,
+      "python_median_seconds_per_sweep": 0.002485361918038283,
+      "native_median_seconds_per_sweep": 1.8911549041867335e-05,
+      "kernel_speedup": 131.420324825643,
+      "max_absolute_position_error": 1.1102230246251565e-16
+    },
+    {
+      "python_samples_per_sweep": [
+        0.011614883307699459,
+        0.010871743285698747,
+        0.01043021900001501
+      ],
+      "native_samples_per_sweep": [
+        4.047926312955331e-05,
+        3.900053740268616e-05,
+        3.8989793658941887e-05
+      ],
+      "python_timing_calls": [
+        13,
+        14,
+        15
+      ],
+      "native_timing_calls": [
+        3713,
+        3850,
+        3848
+      ],
+      "grid": 20,
+      "vertices": 400,
+      "edges": 760,
+      "parity_sweeps": 5,
+      "python_median_seconds_per_sweep": 0.010871743285698747,
+      "native_median_seconds_per_sweep": 3.900053740268616e-05,
+      "kernel_speedup": 278.7588071786405,
+      "max_absolute_position_error": 5.551115123125783e-17
+    },
+    {
+      "python_samples_per_sweep": [
+        0.06648011699993124,
+        0.07184435066665174,
+        0.07684684550008569
+      ],
+      "native_samples_per_sweep": [
+        0.00018430917936099634,
+        0.00018551373794779003,
+        0.00018084545738319258
+      ],
+      "python_timing_calls": [
+        3,
+        3,
+        2
+      ],
+      "native_timing_calls": [
+        814,
+        809,
+        833
+      ],
+      "grid": 50,
+      "vertices": 2500,
+      "edges": 4900,
+      "parity_sweeps": 5,
+      "python_median_seconds_per_sweep": 0.07184435066665174,
+      "native_median_seconds_per_sweep": 0.00018430917936099634,
+      "kernel_speedup": 389.8034320142792,
+      "max_absolute_position_error": 2.7755575615628914e-17
+    }
+  ],
+  "invalid_input_no_mutation": true,
+  "overflow_rollback": true,
+  "timing_protocol": "3 repeated batches >=0.15 seconds; median per sweep; warmed and converging state; timings exclude construction and compilation"
+}

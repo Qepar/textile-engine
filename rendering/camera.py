@@ -3,6 +3,7 @@ Camera Class for Textile Engine
 Handles 3D camera viewing and navigation.
 """
 import numpy as np
+from utils.math_utils import norm
 
 class Camera:
     def __init__(self, position=np.array([0, 0, 5]), target=np.array([0, 0, 0]), up=np.array([0, 1, 0])):

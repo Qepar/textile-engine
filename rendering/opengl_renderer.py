@@ -8,7 +8,7 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 from .camera import Camera
-from core.math_utils import norm
+from utils.math_utils import norm
 
 class OpenGLRenderer:
     def __init__(self, width=800, height=600, title="Textile Engine"):

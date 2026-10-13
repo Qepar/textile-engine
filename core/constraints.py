@@ -1,145 +1,81 @@
-"""
-Constraint Classes for Textile Engine
-Implements various constraints for cloth simulation.
+"""Experimental PBD projections with explicit array and inverse-mass inputs.
+Stiffness is a dimensionless projection fraction in [0, 1], not a spring constant.
+Three-point angle bending is not a calibrated shell/dihedral material model.
 """
 import numpy as np
-from .math_utils import norm, normalize
+
+def fraction(value):
+    value=float(value)
+    if not np.isfinite(value) or not 0<=value<=1:raise ValueError('stiffness must be in [0, 1]')
+    return value
 
 class Constraint:
-    """Base class for all constraints."""
-    def __init__(self, particles, stiffness=1.0):
-        self.particles = particles
-        self.stiffness = stiffness
-
-    def solve(self, positions, dt):
-        """Apply the constraint and return position corrections."""
-        raise NotImplementedError
+    def __init__(self,particles,stiffness=1.):
+        self.particles=list(particles);self.stiffness=fraction(stiffness)
+    def weights(self,inverse_masses):
+        return np.ones(len(self.particles)) if inverse_masses is None else np.asarray(inverse_masses)[self.particles]
+    def solve(self,positions,dt,inverse_masses=None,dampness=None):raise NotImplementedError
 
 class DistanceConstraint(Constraint):
-    """Distance constraint between two particles (spring-like behavior)."""
-    def __init__(self, p1_idx, p2_idx, rest_length, stiffness=1.0):
-        super().__init__([p1_idx, p2_idx], stiffness)
-        self.rest_length = rest_length
-
-    def solve(self, positions, dt):
-        p1 = positions[self.particles[0]]
-        p2 = positions[self.particles[1]]
-        delta = p2 - p1
-        current_length = norm(delta)
-        if current_length == 0:
-            return np.zeros((2, 3))
-        correction = (current_length - self.rest_length) / current_length
-        delta_correction = 0.5 * self.stiffness * correction * delta
-        return np.array([delta_correction, -delta_correction])
+    def __init__(self,p1_idx,p2_idx,rest_length,stiffness=1.):
+        super().__init__([p1_idx,p2_idx],stiffness);self.rest_length=float(rest_length)
+        if not np.isfinite(self.rest_length) or self.rest_length<=0:raise ValueError('rest length must be positive')
+    def effective_stiffness(self,delta,dampness):return self.stiffness
+    def solve(self,positions,dt,inverse_masses=None,dampness=None):
+        a,b=np.asarray(positions)[self.particles];delta=b-a;length=np.linalg.norm(delta)
+        weights=self.weights(inverse_masses);total=weights.sum()
+        if length<=1e-15 or total<=0:return np.zeros((2,3))
+        correction=self.effective_stiffness(delta,dampness)*(length-self.rest_length)*delta/length/total
+        return np.array([weights[0]*correction,-weights[1]*correction])
 
 class BendConstraint(Constraint):
-    """Bend constraint for three particles to control folding behavior."""
-    def __init__(self, p1_idx, p2_idx, p3_idx, stiffness=0.5):
-        super().__init__([p1_idx, p2_idx, p3_idx], stiffness)
-        self.rest_angle = np.pi
-
-    def solve(self, positions, dt):
-        p1 = positions[self.particles[0]]
-        p2 = positions[self.particles[1]]
-        p3 = positions[self.particles[2]]
-        v1 = p1 - p2
-        v2 = p3 - p2
-        current_length_v1 = norm(v1)
-        current_length_v2 = norm(v2)
-        if current_length_v1 == 0 or current_length_v2 == 0:
-            return np.zeros((3, 3))
-        cos_angle = np.dot(v1, v2) / (current_length_v1 * current_length_v2)
-        current_angle = np.arccos(np.clip(cos_angle, -1.0, 1.0))
-        delta_angle = current_angle - self.rest_angle
-        axis = np.cross(v1, v2)
-        if norm(axis) == 0:
-            return np.zeros((3, 3))
-        axis = normalize(axis)
-        theta = delta_angle * self.stiffness
-        K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
-        R = np.eye(3) + np.sin(theta) * K + (1 - np.cos(theta)) * np.dot(K, K)
-        correction = np.dot(R, p2 - (p1 + p3) / 2) - (p2 - (p1 + p3) / 2)
-        return np.array([np.zeros(3), correction, np.zeros(3)])
+    def __init__(self,p1_idx,p2_idx,p3_idx,stiffness=.5,rest_angle=np.pi):
+        super().__init__([p1_idx,p2_idx,p3_idx],stiffness);self.rest_angle=float(rest_angle)
+        if not np.isfinite(self.rest_angle) or not 0<=self.rest_angle<=np.pi:raise ValueError('invalid rest angle')
+    def set_rest_angle(self,positions):
+        a,b,c=np.asarray(positions)[self.particles];u=a-b;v=c-b
+        self.rest_angle=float(np.arccos(np.clip(np.dot(u,v)/(np.linalg.norm(u)*np.linalg.norm(v)),-1,1)))
+    def solve(self,positions,dt,inverse_masses=None,dampness=None):
+        a,b,c=np.asarray(positions)[self.particles];u=a-b;v=c-b
+        l1=np.linalg.norm(u);l2=np.linalg.norm(v)
+        if min(l1,l2)<=1e-15:return np.zeros((3,3))
+        cosine=np.clip(np.dot(u,v)/(l1*l2),-1,1);sine=np.sqrt(max(0,1-cosine*cosine))
+        if sine<=1e-10:return np.zeros((3,3))
+        ga=-(v/(l1*l2)-cosine*u/l1**2)/sine
+        gc=-(u/(l1*l2)-cosine*v/l2**2)/sine
+        grads=np.array([ga,-ga-gc,gc]);weights=self.weights(inverse_masses)
+        denom=np.sum(weights*np.sum(grads*grads,axis=1))
+        if denom<=1e-15:return np.zeros((3,3))
+        dl=-self.stiffness*(np.arccos(cosine)-self.rest_angle)/denom
+        return weights[:,None]*dl*grads
 
 class ShearConstraint(Constraint):
-    """Shear constraint for four particles to control diagonal stiffness."""
-    def __init__(self, p1_idx, p2_idx, p3_idx, p4_idx, stiffness=0.8):
-        super().__init__([p1_idx, p2_idx, p3_idx, p4_idx], stiffness)
-        self.rest_length = 0.0
-
-    def set_rest_length(self, positions):
-        p1 = positions[self.particles[0]]
-        p2 = positions[self.particles[1]]
-        p3 = positions[self.particles[2]]
-        p4 = positions[self.particles[3]]
-        d1 = p3 - p1
-        d2 = p4 - p2
-        self.rest_length = norm(d1 - d2)
-
-    def solve(self, positions, dt):
-        p1 = positions[self.particles[0]]
-        p2 = positions[self.particles[1]]
-        p3 = positions[self.particles[2]]
-        p4 = positions[self.particles[3]]
-        d1 = p3 - p1
-        d2 = p4 - p2
-        current_length = norm(d1 - d2)
-        if current_length == 0:
-            return np.zeros((4, 3))
-        correction = (current_length - self.rest_length) / current_length
-        delta_correction = 0.25 * self.stiffness * correction * (d1 - d2)
-        return np.array([delta_correction, delta_correction, -delta_correction, -delta_correction])
+    def __init__(self,p1_idx,p2_idx,p3_idx,p4_idx,stiffness=.8):
+        super().__init__([p1_idx,p2_idx,p3_idx,p4_idx],stiffness);self.rest_length=0.
+    def set_rest_length(self,positions):
+        a,b,c,d=np.asarray(positions)[self.particles];self.rest_length=np.linalg.norm(c-a-d+b)
+    def solve(self,positions,dt,inverse_masses=None,dampness=None):
+        a,b,c,d=np.asarray(positions)[self.particles];delta=c-a-d+b;length=np.linalg.norm(delta)
+        weights=self.weights(inverse_masses)
+        if length<=1e-15 or weights.sum()<=0:return np.zeros((4,3))
+        grads=np.array([-delta,delta,delta,-delta])/length
+        dl=-self.stiffness*(length-self.rest_length)/weights.sum()
+        return weights[:,None]*dl*grads
 
 class AnisotropicDistanceConstraint(DistanceConstraint):
-    """Anisotropic distance constraint for direction-dependent stiffness."""
-    def __init__(self, p1_idx, p2_idx, rest_length, stiffness_x=1.0, stiffness_y=0.5, direction=np.array([1, 0, 0])):
-        super().__init__(p1_idx, p2_idx, rest_length, 1.0)
-        self.stiffness_x = stiffness_x
-        self.stiffness_y = stiffness_y
-        self.direction = normalize(direction)
-
-    def solve(self, positions, dt):
-        p1 = positions[self.particles[0]]
-        p2 = positions[self.particles[1]]
-        delta = p2 - p1
-        current_length = norm(delta)
-        if current_length == 0:
-            return np.zeros((2, 3))
-        projection = np.dot(delta, self.direction)
-        parallel_component = projection * self.direction
-        perpendicular_component = delta - parallel_component
-        parallel_correction = (norm(parallel_component) - self.rest_length) / norm(parallel_component) if norm(parallel_component) > 0 else 0
-        perpendicular_correction = norm(perpendicular_component) / norm(perpendicular_component) if norm(perpendicular_component) > 0 else 0
-        correction = (
-            parallel_correction * self.stiffness_x * parallel_component +
-            perpendicular_correction * self.stiffness_y * perpendicular_component
-        ) * 0.5
-        inv_mass1 = 1.0 if positions[self.particles[0]].mass == 0 else positions[self.particles[0]].inv_mass
-        inv_mass2 = 1.0 if positions[self.particles[1]].mass == 0 else positions[self.particles[1]].inv_mass
-        total_inv_mass = inv_mass1 + inv_mass2
-        if total_inv_mass > 0:
-            correction *= 1.0 / total_inv_mass
-        return np.array([correction, -correction])
+    def __init__(self,p1_idx,p2_idx,rest_length,stiffness_x=1.,stiffness_y=.5,direction=(1,0,0)):
+        super().__init__(p1_idx,p2_idx,rest_length)
+        self.stiffness_x=fraction(stiffness_x);self.stiffness_y=fraction(stiffness_y)
+        direction=np.asarray(direction,dtype=float);n=np.linalg.norm(direction)
+        if direction.shape!=(3,) or not np.isfinite(direction).all() or n<=0:raise ValueError('invalid direction')
+        self.direction=direction/n
+    def effective_stiffness(self,delta,dampness):
+        cosine=np.dot(delta,self.direction)/np.linalg.norm(delta)
+        return self.stiffness_x*cosine**2+self.stiffness_y*(1-cosine**2)
 
 class WetDistanceConstraint(DistanceConstraint):
-    """Distance constraint that accounts for fabric dampness."""
-    def __init__(self, p1_idx, p2_idx, rest_length, stiffness=1.0):
-        super().__init__(p1_idx, p2_idx, rest_length, stiffness)
-
-    def solve(self, positions, dt):
-        p1 = positions[self.particles[0]]
-        p2 = positions[self.particles[1]]
-        avg_dampness = (p1.dampness + p2.dampness) / 2
-        effective_stiffness = self.stiffness * (1.0 - 0.5 * avg_dampness)
-        delta = p2 - p1
-        current_length = norm(delta)
-        if current_length == 0:
-            return np.zeros((2, 3))
-        correction = (current_length - self.rest_length) / current_length
-        delta_correction = 0.5 * effective_stiffness * correction * delta
-        inv_mass1 = 1.0 if p1.mass == 0 else p1.inv_mass
-        inv_mass2 = 1.0 if p2.mass == 0 else p2.inv_mass
-        total_inv_mass = inv_mass1 + inv_mass2
-        if total_inv_mass > 0:
-            delta_correction *= effective_stiffness / total_inv_mass
-        return np.array([delta_correction, -delta_correction])
+    def effective_stiffness(self,delta,dampness):
+        if dampness is None:raise ValueError('dampness array required')
+        values=np.asarray(dampness)[self.particles]
+        if not np.isfinite(values).all() or np.any((values<0)|(values>1)):raise ValueError('invalid dampness')
+        return self.stiffness*(1-.5*values.mean())

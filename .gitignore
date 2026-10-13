@@ -1,21 +1,9 @@
-# Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
+*.pyc
 *.egg-info/
-.env
+build/
+dist/
 .venv/
-
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
+*.so
+*.dll
+*.dylib

@@ -4,13 +4,18 @@ Represents a cloth mesh made of particles and constraints.
 """
 import numpy as np
 from .particle import Particle
-from .constraints import DistanceConstraint, BendConstraint, ShearConstraint
+from .constraints import DistanceConstraint, BendConstraint, ShearConstraint, AnisotropicDistanceConstraint, WetDistanceConstraint
 
 class Cloth:
     """
     A cloth simulation object composed of particles and constraints.
     """
-    def __init__(self, width=2.0, height=2.0, num_width=10, num_height=10, mass=0.1, stiffness=10.0, use_anisotropic=False, use_wet_simulation=False):
+    def __init__(self, width=2.0, height=2.0, num_width=10, num_height=10, mass=0.1, stiffness=0.8, use_anisotropic=False, use_wet_simulation=False):
+        if num_width < 2 or num_height < 2 or not isinstance(num_width, int) or not isinstance(num_height, int):
+            raise ValueError("grid dimensions must be integers >= 2")
+        if not np.isfinite([width,height,mass,stiffness]).all() or min(width,height,mass)<=0 or not 0<=stiffness<=1:
+            raise ValueError("invalid cloth parameters; stiffness must be in [0,1]")
+        if use_anisotropic and use_wet_simulation:raise ValueError("combined material options not qualified")
         self.width = width
         self.height = height
         self.num_width = num_width
@@ -39,7 +44,7 @@ class Cloth:
                 if j < self.num_width - 1:
                     rest_length = self.width / (self.num_width - 1)
                     if self.use_anisotropic:
-                        self.constraints.append(AnisotropicDistanceConstraint(idx, idx + 1, rest_length, stiffness_x=stiffness * 1.2, stiffness_y=stiffness * 0.8))
+                        self.constraints.append(AnisotropicDistanceConstraint(idx, idx + 1, rest_length, stiffness_x=stiffness, stiffness_y=stiffness * 0.8))
                     elif self.use_wet_simulation:
                         self.constraints.append(WetDistanceConstraint(idx, idx + 1, rest_length, stiffness))
                     else:
@@ -47,7 +52,7 @@ class Cloth:
                 if i < self.num_height - 1:
                     rest_length = self.height / (self.num_height - 1)
                     if self.use_anisotropic:
-                        self.constraints.append(AnisotropicDistanceConstraint(idx, idx + self.num_width, rest_length, stiffness_x=stiffness * 1.2, stiffness_y=stiffness * 0.8, direction=np.array([0, 1, 0])))
+                        self.constraints.append(AnisotropicDistanceConstraint(idx, idx + self.num_width, rest_length, stiffness_x=stiffness, stiffness_y=stiffness * 0.8, direction=np.array([0, 1, 0])))
                     elif self.use_wet_simulation:
                         self.constraints.append(WetDistanceConstraint(idx, idx + self.num_width, rest_length, stiffness))
                     else:
@@ -61,6 +66,10 @@ class Cloth:
                 self.constraints.append(BendConstraint(idx, idx + 1, idx + self.num_width + 1, stiffness * 0.3))
                 self.constraints.append(BendConstraint(idx + 1, idx, idx + self.num_width, stiffness * 0.3))
 
+        positions=np.array([p.position for p in self.particles])
+        for constraint in self.constraints:
+            if isinstance(constraint,BendConstraint):constraint.set_rest_angle(positions)
+
     def apply_external_force(self, force):
         for p in self.particles:
             if not p.fixed:
@@ -73,6 +82,7 @@ class Cloth:
                 p.force += wind_force * height_factor
 
     def set_dampness(self, dampness):
+        if not np.isfinite(dampness) or not 0<=dampness<=1:raise ValueError("dampness must be in [0,1]")
         for p in self.particles:
             p.dampness = dampness
 

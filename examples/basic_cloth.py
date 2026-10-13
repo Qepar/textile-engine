@@ -11,7 +11,7 @@ def main():
         num_width=20,
         num_height=20,
         mass=0.05,
-        stiffness=20.0
+        stiffness=0.8
     )
     renderer = OpenGLRenderer(
         width=800,

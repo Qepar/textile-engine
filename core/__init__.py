@@ -13,4 +13,4 @@ from .constraints import (
 )
 from .solver import PBDSolver, SpatialGrid
 from .collision import detect_collisions, resolve_collisions
-from .math_utils import norm, normalize
+from utils.math_utils import norm, normalize
