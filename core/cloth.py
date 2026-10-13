@@ -21,7 +21,7 @@ class Cloth:
                 x = -self.width/2 + j * dx
                 y = -self.height/2 + i * dy
                 fixed = (i == 0 and (j == 0 or j == self.num_width-1))
-                self.particles.append(Particle([x, y, 0], mass=0.1, fixed=fixed))
+                self.particles.append(Particle([x, y, 0], mass=mass, fixed=fixed))
 
     def _init_constraints(self, mass, stiffness):
         for i in range(self.num_height):
@@ -43,22 +43,12 @@ class Cloth:
             if not p.fixed:
                 p.force += force
 
-    def update(self, dt, gravity=np.array([0,0,-9.81])):
-        self.apply_external_force(gravity * dt)
-        for p in self.particles:
-            if not p.fixed:
-                p.velocity += p.force * p.inv_mass * dt
-                p.position += p.velocity * dt
-                p.force = np.zeros(3)
-                p.prev_position = p.position.copy()
-
-    def apply_constraints(self, iterations=5):
-        for _ in range(iterations):
-            for c in self.constraints:
-                corrections = c.solve(np.array([p.position for p in self.particles]), 0.0)
-                for i, idx in enumerate(c.particles):
-                    if not self.particles[idx].fixed:
-                        self.particles[idx].position += corrections[i]
-        for p in self.particles:
-            if not p.fixed:
-                p.velocity = (p.position - p.prev_position) / 0.016
+    def reset(self):
+        dx = self.width / (self.num_width - 1) if self.num_width > 1 else self.width
+        dy = self.height / (self.num_height - 1) if self.num_height > 1 else self.height
+        for i, p in enumerate(self.particles):
+            j = i % self.num_width
+            k = i // self.num_width
+            p.position = np.array([-self.width/2 + j * dx, -self.height/2 + k * dy, 0])
+            p.velocity = np.zeros(3)
+            p.force = np.zeros(3)
