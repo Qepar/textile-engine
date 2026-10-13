@@ -1,1 +1,1 @@
-from .math_utils import norm, normalize
+from .math_utils import norm, normalize, clamp
