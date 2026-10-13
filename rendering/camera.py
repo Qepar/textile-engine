@@ -1,3 +1,7 @@
+"""
+Camera Class for Textile Engine
+Handles 3D camera viewing and navigation.
+"""
 import numpy as np
 
 class Camera:
@@ -16,8 +20,8 @@ class Camera:
 
     def move_forward(self, distance):
         direction = self.target - self.position
-        if np.linalg.norm(direction) > 0:
-            direction = direction / np.linalg.norm(direction)
+        if norm(direction) > 0:
+            direction = direction / norm(direction)
         else:
             direction = np.array([0, 0, -1])
         self.position += direction * distance
@@ -25,13 +29,13 @@ class Camera:
 
     def move_right(self, distance):
         direction = self.target - self.position
-        if np.linalg.norm(direction) > 0:
-            direction = direction / np.linalg.norm(direction)
+        if norm(direction) > 0:
+            direction = direction / norm(direction)
         else:
             direction = np.array([0, 0, -1])
         right = np.cross(direction, self.up)
-        if np.linalg.norm(right) > 0:
-            right = right / np.linalg.norm(right)
+        if norm(right) > 0:
+            right = right / norm(right)
         else:
             right = np.array([1, 0, 0])
         self.position += right * distance
