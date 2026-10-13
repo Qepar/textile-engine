@@ -1,9 +1,14 @@
+"""
+OpenGL Renderer for Textile Engine
+Handles 3D rendering using PyOpenGL.
+"""
 import sys
 import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 from .camera import Camera
+from core.math_utils import norm
 
 class OpenGLRenderer:
     def __init__(self, width=800, height=600, title="Textile Engine"):
@@ -13,6 +18,7 @@ class OpenGLRenderer:
         self.cloth = None
         self.camera = Camera(position=np.array([0, 0, 5]))
         self.show_particles = False
+        self.show_wireframe = False
 
     def set_cloth(self, cloth):
         self.cloth = cloth
@@ -35,6 +41,11 @@ class OpenGLRenderer:
     def draw_cloth(self):
         if self.cloth is None:
             return
+        if self.show_wireframe:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glColor3f(0.8, 0.2, 0.2)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glBegin(GL_TRIANGLES)
         for i in range(self.cloth.num_height - 1):
             for j in range(self.cloth.num_width - 1):
@@ -44,7 +55,7 @@ class OpenGLRenderer:
                 p3 = self.cloth.particles[idx + self.cloth.num_width].position
                 p4 = self.cloth.particles[idx + self.cloth.num_width + 1].position
                 normal = np.cross(p2 - p1, p3 - p1)
-                normal = normal / np.linalg.norm(normal) if np.linalg.norm(normal) > 0 else np.array([0, 0, 1])
+                normal = normal / norm(normal) if norm(normal) > 0 else np.array([0, 0, 1])
                 glNormal3fv(normal)
                 glColor3f(0.8, 0.2, 0.2)
                 glVertex3fv(p1)
@@ -55,12 +66,15 @@ class OpenGLRenderer:
                 glVertex3fv(p4)
                 glVertex3fv(p3)
         glEnd()
-
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         if self.show_particles:
             glPointSize(3.0)
             glBegin(GL_POINTS)
             for p in self.cloth.particles:
-                glColor3f(0, 1, 0) if p.fixed else glColor3f(1, 1, 0)
+                if p.fixed:
+                    glColor3f(0, 1, 0)
+                else:
+                    glColor3f(1, 1, 0)
                 glVertex3fv(p.position)
             glEnd()
 
@@ -110,6 +124,8 @@ class OpenGLRenderer:
         elif key == b' ':
             if self.cloth:
                 self.cloth.reset()
+        elif key == b'w':
+            self.show_wireframe = not self.show_wireframe
         elif key == b'p':
             self.show_particles = not self.show_particles
 
